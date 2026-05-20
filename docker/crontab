@@ -1,0 +1,7 @@
+# Memestock Radar — daily agent
+# Runs Mon-Fri at 09:00 America/New_York = 13:00 UTC
+# Adjust if your NAS clock is not UTC (check with: docker exec <agent-container> date)
+
+0 13 * * 1-5 root cd /app && python daily_agent.py >> /app/logs/agent.log 2>&1
+
+# Blank line required at end of cron file

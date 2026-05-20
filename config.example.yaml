@@ -1,0 +1,58 @@
+# Copy this file to config.yaml and fill in your values.
+# All API keys are read from environment variables — never put real keys here.
+# See .env.example for the full list of required environment variables.
+
+news:
+  source: finnhub  # finnhub | newsapi | alphavantage
+  lookback_days: 3
+  max_articles_per_ticker: 15
+
+reddit:
+  top_n_tickers: 20
+  gem_pool_size: 30
+
+scoring:
+  weights:
+    reddit_hype: 0.30
+    reddit_sentiment: 0.18
+    news_sentiment: 0.27
+    momentum: 0.15
+    stocktwits_sentiment: 0.10
+  filters:
+    min_news_volume: 2
+    min_reddit_mentions: 3
+    min_subreddit_spread: 2
+    confidence_floor: 0.50
+  matrix:
+    bull_bull: 1.00
+    bear_bear: 1.00
+    bull_bear: 0.40
+    bear_bull: 0.30
+  momentum:
+    window_days: 3
+
+history:
+  path: history.jsonl
+
+email:
+  enabled: true
+  smtp_server: "smtp.gmail.com"
+  smtp_port: 587
+
+claude:
+  enabled: true
+  # ANTHROPIC_API_KEY is read from the environment (.env / docker env_file)
+
+agent:
+  fallback_message: "No high-confidence trade today."
+  top_picks_in_email: 3
+
+hidden_gems:
+  enabled: true
+  max_picks: 3
+  max_reddit_mentions: 3
+  min_news_volume: 2
+  min_news_sentiment: 0.10
+  min_engagement_ratio: 1.0
+  novelty_lookback_days: 7
+  require_novelty: false

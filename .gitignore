@@ -1,0 +1,39 @@
+# ── Secrets — NEVER commit these ──────────────────────────────────────────────
+.env
+*.env
+config.yaml          # real config with env-var values — use config.example.yaml
+
+# ── Runtime data ──────────────────────────────────────────────────────────────
+banbets.db
+history.jsonl
+/tmp/radar-*.json
+/tmp/radar-cooldown
+
+# ── Python ────────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.egg-info/
+dist/
+build/
+.eggs/
+.venv/
+venv/
+env/
+
+# ── Pytest / coverage ─────────────────────────────────────────────────────────
+.pytest_cache/
+.coverage
+htmlcov/
+
+# ── Workflow state (local only) ───────────────────────────────────────────────
+.octo-continue.md
+.octo/
+.claude-octopus/
+
+# ── macOS ─────────────────────────────────────────────────────────────────────
+.DS_Store
+
+# ── Logs ──────────────────────────────────────────────────────────────────────
+*.log

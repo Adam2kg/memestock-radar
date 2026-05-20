@@ -1,0 +1,1369 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Memestock Radar</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <style>
+    :root {
+      --bg: #0d0f14;
+      --surface: #151820;
+      --border: #252a35;
+      --text: #e2e8f0;
+      --muted: #64748b;
+      --green: #22c55e;
+      --red: #ef4444;
+      --yellow: #eab308;
+      --blue: #3b82f6;
+      --purple: #a855f7;
+      --accent: #6366f1;
+    }
+
+    body.light {
+      --bg: #f8fafc;
+      --surface: #ffffff;
+      --border: #e2e8f0;
+      --text: #1e293b;
+      --muted: #64748b;
+      --green: #16a34a;
+      --red: #dc2626;
+      --yellow: #ca8a04;
+      --accent: #4f46e5;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+      font-size: 13px;
+      min-height: 100vh;
+    }
+
+    /* ── Header ── */
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 24px;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    .logo {
+      font-size: 18px;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      color: var(--accent);
+    }
+
+    .logo span { color: var(--text); }
+
+    .header-right {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .status-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: var(--muted);
+      display: inline-block;
+    }
+
+    .status-dot.live { background: var(--green); box-shadow: 0 0 6px var(--green); }
+
+    #last-update { color: var(--muted); font-size: 11px; }
+
+    .btn {
+      padding: 6px 14px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--text);
+      cursor: pointer;
+      font-family: inherit;
+      font-size: 12px;
+      transition: all 0.15s;
+    }
+
+    .btn:hover { border-color: var(--accent); color: var(--accent); }
+    .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+    .btn.primary:hover { background: #4f46e5; }
+
+    /* ── Layout ── */
+    .container { max-width: 1600px; margin: 0 auto; padding: 20px 24px; }
+
+    .grid-main {
+      display: grid;
+      grid-template-columns: 1fr 360px;
+      gap: 20px;
+    }
+
+    .col-left { display: flex; flex-direction: column; gap: 20px; }
+    .col-right { display: flex; flex-direction: column; gap: 20px; }
+
+    /* ── Cards ── */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      overflow: hidden;
+    }
+
+    .card-header {
+      padding: 14px 18px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .card-title {
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+    }
+
+    .card-body { padding: 16px 18px; }
+
+    /* ── Trending table ── */
+    .trending-table { width: 100%; border-collapse: collapse; }
+
+    .trending-table th {
+      text-align: left;
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+      padding: 6px 10px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .trending-table th.right, .trending-table td.right { text-align: right; }
+
+    .trending-table tr.ticker-row {
+      cursor: pointer;
+      transition: background 0.1s;
+    }
+
+    .trending-table tr.ticker-row:hover { background: rgba(99, 102, 241, 0.08); }
+
+    .trending-table td {
+      padding: 9px 10px;
+      border-bottom: 1px solid rgba(37, 42, 53, 0.7);
+      vertical-align: middle;
+    }
+
+    .rank { color: var(--muted); font-size: 11px; width: 30px; }
+
+    .ticker-symbol {
+      font-weight: 700;
+      font-size: 14px;
+      color: var(--accent);
+    }
+
+    .subs-badge {
+      font-size: 10px;
+      color: var(--muted);
+      margin-top: 2px;
+    }
+
+    .pill {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 20px;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+
+    .pill.bullish { background: rgba(34, 197, 94, 0.15); color: var(--green); }
+    .pill.bearish { background: rgba(239, 68, 68, 0.15); color: var(--red); }
+    .pill.neutral  { background: rgba(234, 179, 8, 0.12); color: var(--yellow); }
+
+    .hype-bar-wrap { width: 80px; }
+
+    .hype-bar-bg {
+      background: var(--border);
+      border-radius: 3px;
+      height: 4px;
+      overflow: hidden;
+    }
+
+    .hype-bar-fill {
+      height: 100%;
+      border-radius: 3px;
+      background: var(--accent);
+      transition: width 0.5s;
+    }
+
+    .hype-val { font-size: 10px; color: var(--muted); margin-top: 3px; }
+
+    /* ── Subreddit tabs ── */
+    .tabs {
+      display: flex;
+      gap: 4px;
+      flex-wrap: wrap;
+    }
+
+    .tab {
+      padding: 5px 12px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: transparent;
+      color: var(--muted);
+      cursor: pointer;
+      font-family: inherit;
+      font-size: 11px;
+      transition: all 0.15s;
+    }
+
+    .tab:hover { color: var(--text); border-color: var(--accent); }
+    .tab.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+    /* ── Chart ── */
+    .chart-wrap { position: relative; height: 220px; }
+
+    /* ── Sub comparison grid ── */
+    .sub-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+      gap: 10px;
+    }
+
+    .sub-card {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .sub-card:hover { border-color: var(--accent); }
+    .sub-card.selected { border-color: var(--accent); background: rgba(99,102,241,0.08); }
+
+    .sub-name { font-size: 11px; font-weight: 700; color: var(--accent); margin-bottom: 6px; }
+
+    .sub-stat { display: flex; justify-content: space-between; font-size: 11px; margin-top: 4px; }
+    .sub-stat .label { color: var(--muted); }
+    .sub-stat .val { color: var(--text); }
+
+    /* ── Posts feed ── */
+    .post-item {
+      border-bottom: 1px solid var(--border);
+      padding: 10px 0;
+    }
+
+    .post-item:last-child { border-bottom: none; }
+
+    .post-title {
+      color: var(--text);
+      text-decoration: none;
+      font-size: 12px;
+      line-height: 1.4;
+      display: block;
+      margin-bottom: 5px;
+    }
+
+    .post-title:hover { color: var(--accent); }
+
+    .post-meta {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 10px;
+      color: var(--muted);
+      flex-wrap: wrap;
+    }
+
+    .post-tickers {
+      display: flex;
+      gap: 4px;
+      flex-wrap: wrap;
+    }
+
+    .ticker-tag {
+      font-size: 10px;
+      padding: 1px 5px;
+      border-radius: 3px;
+      background: rgba(99, 102, 241, 0.15);
+      color: var(--accent);
+      font-weight: 600;
+    }
+
+    /* ── Detail panel ── */
+    #detail-panel {
+      display: none;
+      position: fixed;
+      top: 0; right: 0;
+      width: 420px;
+      height: 100vh;
+      background: var(--surface);
+      border-left: 1px solid var(--border);
+      z-index: 200;
+      overflow-y: auto;
+      padding: 24px;
+    }
+
+    #detail-panel.open { display: block; }
+
+    .detail-close {
+      position: absolute;
+      top: 16px; right: 16px;
+      background: none;
+      border: 1px solid var(--border);
+      color: var(--muted);
+      cursor: pointer;
+      padding: 4px 10px;
+      border-radius: 6px;
+      font-family: inherit;
+    }
+
+    .detail-close:hover { color: var(--text); }
+
+    .detail-ticker { font-size: 32px; font-weight: 700; color: var(--accent); }
+
+    .detail-meta { color: var(--muted); font-size: 12px; margin-top: 4px; margin-bottom: 20px; }
+
+    .stat-row { display: flex; gap: 12px; margin-bottom: 20px; flex-wrap: wrap; }
+
+    .stat-box {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px 16px;
+      flex: 1;
+      min-width: 90px;
+    }
+
+    .stat-box .s-label { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
+    .stat-box .s-val { font-size: 20px; font-weight: 700; margin-top: 4px; }
+
+    .sub-breakdown { margin-top: 4px; }
+
+    .sub-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 0;
+      border-bottom: 1px solid var(--border);
+      font-size: 12px;
+    }
+
+    .sub-row:last-child { border-bottom: none; }
+
+    .sub-row-name { color: var(--text); font-weight: 600; }
+    .sub-row-right { display: flex; align-items: center; gap: 10px; }
+
+    .detail-posts { margin-top: 16px; }
+
+    /* ── Loading / error ── */
+    .loading-overlay {
+      position: fixed; inset: 0;
+      background: rgba(13, 15, 20, 0.85);
+      z-index: 300;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+    }
+
+    .spinner {
+      width: 40px; height: 40px;
+      border: 3px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .loading-text { color: var(--muted); font-size: 13px; }
+
+    .error-banner {
+      background: rgba(239, 68, 68, 0.1);
+      border: 1px solid var(--red);
+      color: var(--red);
+      border-radius: 8px;
+      padding: 14px 18px;
+      margin-bottom: 20px;
+    }
+
+    .setup-card {
+      background: rgba(99, 102, 241, 0.08);
+      border: 1px solid var(--accent);
+      border-radius: 10px;
+      padding: 24px;
+      text-align: center;
+      max-width: 520px;
+      margin: 40px auto;
+    }
+
+    .setup-card h2 { color: var(--accent); font-size: 20px; margin-bottom: 12px; }
+    .setup-card p { color: var(--muted); line-height: 1.6; margin-bottom: 10px; }
+    .setup-card code {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 2px 6px;
+      color: var(--green);
+    }
+
+    /* ── Email trigger button ── */
+    #email-btn {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 14px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--text);
+      cursor: pointer;
+      font-family: inherit;
+      font-size: 12px;
+      transition: all 0.15s;
+    }
+    #email-btn:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+    #email-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+    #email-btn.sending { border-color: var(--yellow); color: var(--yellow); }
+    #email-btn.success { border-color: var(--green); color: var(--green); }
+    #email-btn.error   { border-color: var(--red);   color: var(--red);   }
+
+    .email-spinner {
+      width: 12px; height: 12px;
+      border: 2px solid currentColor;
+      border-top-color: transparent;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      display: none;
+    }
+    #email-btn.sending .email-spinner { display: block; }
+
+    /* ── BanBets section ── */
+    #banbets-section { display: none; }
+
+    .banbets-grid {
+      display: grid;
+      grid-template-columns: 1fr 320px;
+      gap: 20px;
+    }
+
+    @media (max-width: 900px) { .banbets-grid { grid-template-columns: 1fr; } }
+
+    .bet-table { width: 100%; border-collapse: collapse; }
+    .bet-table th {
+      text-align: left;
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+      padding: 6px 10px;
+      border-bottom: 1px solid var(--border);
+    }
+    .bet-table td {
+      padding: 9px 10px;
+      border-bottom: 1px solid rgba(37,42,53,0.7);
+      font-size: 12px;
+      vertical-align: middle;
+    }
+    .bet-table th.right, .bet-table td.right { text-align: right; }
+
+    .bet-result {
+      display: inline-block;
+      padding: 2px 7px;
+      border-radius: 10px;
+      font-size: 10px;
+      font-weight: 700;
+    }
+    .bet-result.won    { background: rgba(34,197,94,0.15);  color: var(--green);  }
+    .bet-result.lost   { background: rgba(239,68,68,0.15);  color: var(--red);    }
+    .bet-result.open   { background: rgba(99,102,241,0.12); color: var(--accent); }
+
+    .leaderboard-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 0;
+      border-bottom: 1px solid var(--border);
+      font-size: 12px;
+    }
+    .leaderboard-row:last-child { border-bottom: none; }
+    .lb-rank { color: var(--muted); font-size: 11px; width: 24px; }
+    .lb-author { font-weight: 600; color: var(--accent); flex: 1; }
+    .lb-stats { display: flex; gap: 8px; font-size: 11px; color: var(--muted); }
+    .lb-winrate { font-weight: 700; color: var(--text); }
+
+    /* ── Theme toggle button ── */
+    #theme-toggle {
+      width: 36px; height: 20px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: var(--border);
+      cursor: pointer;
+      position: relative;
+      transition: background 0.2s;
+      flex-shrink: 0;
+    }
+
+    #theme-toggle::after {
+      content: '';
+      position: absolute;
+      top: 2px; left: 2px;
+      width: 14px; height: 14px;
+      border-radius: 50%;
+      background: var(--muted);
+      transition: transform 0.2s, background 0.2s;
+    }
+
+    body.light #theme-toggle { background: var(--accent); border-color: var(--accent); }
+    body.light #theme-toggle::after { transform: translateX(16px); background: #fff; }
+
+    /* ── Responsive ── */
+    @media (max-width: 1100px) {
+      .grid-main { grid-template-columns: 1fr; }
+    }
+
+    @media (max-width: 600px) {
+      header { padding: 10px 14px; }
+      .container { padding: 12px 14px; }
+      .card-body { padding: 12px 14px; }
+      #detail-panel { width: 100%; }
+      .stat-row { flex-direction: column; }
+      .hype-bar-wrap { width: 60px; }
+      .trending-table th:nth-child(4),
+      .trending-table td:nth-child(4),
+      .trending-table th:nth-child(5),
+      .trending-table td:nth-child(5) { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo" role="banner">MEMESTOCK<span> RADAR</span></div>
+  <div class="header-right">
+    <span class="status-dot" id="status-dot" role="status" aria-label="Connection status"></span>
+    <span id="last-update" aria-live="polite">Loading…</span>
+    <button id="theme-toggle" onclick="toggleTheme()" aria-label="Toggle light/dark mode" title="Toggle theme"></button>
+    <button id="email-btn" onclick="sendEmail()" aria-label="Send daily email report" title="Trigger the daily radar email">
+      <div class="email-spinner" aria-hidden="true"></div>
+      <span id="email-btn-label">✉ Send Email</span>
+    </button>
+    <button class="btn" onclick="loadData(true)" aria-label="Force refresh data">Refresh</button>
+  </div>
+</header>
+
+<!-- Loading overlay -->
+<div class="loading-overlay" id="loading">
+  <div class="spinner"></div>
+  <div class="loading-text" id="loading-text">Fetching Reddit data…</div>
+</div>
+
+<!-- Detail side panel -->
+<div id="detail-panel" role="dialog" aria-modal="false" aria-label="Ticker detail">
+  <button class="detail-close" onclick="closeDetail()" aria-label="Close detail panel">✕ Close</button>
+  <div id="detail-content"></div>
+</div>
+
+<div class="container" id="main-content" style="display:none">
+
+  <div id="error-area"></div>
+
+  <!-- Setup screen (shown when not configured) -->
+  <div id="setup-screen" style="display:none">
+    <div class="setup-card">
+      <h2>Setup Required</h2>
+      <p>Create a <code>.env</code> file in the app directory with your Reddit API credentials:</p>
+      <p>
+        1. Go to <strong>reddit.com/prefs/apps</strong><br>
+        2. Create a new <em>script</em> app<br>
+        3. Copy your <code>client_id</code> and <code>client_secret</code>
+      </p>
+      <p>
+        <code>REDDIT_CLIENT_ID=xxx</code><br>
+        <code>REDDIT_CLIENT_SECRET=xxx</code><br>
+        <code>REDDIT_USER_AGENT=MemestockRadar/1.0 by YourUsername</code>
+      </p>
+      <p style="margin-top:16px"><button class="btn primary" onclick="loadData()">Retry</button></p>
+    </div>
+  </div>
+
+  <div id="dashboard" style="display:none">
+
+    <!-- Sub selector -->
+    <div class="card" style="margin-bottom:20px">
+      <div class="card-header">
+        <span class="card-title">Subreddits</span>
+        <span id="sub-status" style="font-size:11px;color:var(--muted)"></span>
+      </div>
+      <div class="card-body">
+        <div class="tabs" id="sub-tabs">
+          <button class="tab active" data-sub="all" onclick="selectSub('all', this)">All Combined</button>
+          {% for sub in subreddits %}
+          <button class="tab" data-sub="{{ sub }}" onclick="selectSub('{{ sub }}', this)">r/{{ sub }}</button>
+          {% endfor %}
+          <button class="tab" data-sub="__banbets__" onclick="selectSub('__banbets__', this)"
+                  style="margin-left:8px;border-left:2px solid var(--border);padding-left:14px"
+                  aria-label="View BanBet predictions">🎲 BanBets</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid-main">
+      <div class="col-left">
+
+        <!-- Trending tickers -->
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">Trending Tickers</span>
+            <span id="ticker-count" style="font-size:11px;color:var(--muted)"></span>
+          </div>
+          <div class="card-body" style="padding:0">
+            <table class="trending-table">
+              <thead>
+                <tr>
+                  <th style="width:30px">#</th>
+                  <th>Ticker</th>
+                  <th>Sentiment</th>
+                  <th class="right">Mentions</th>
+                  <th class="right">Upvotes</th>
+                  <th>Hype Index</th>
+                </tr>
+              </thead>
+              <tbody id="ticker-table-body"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Sentiment chart -->
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">Top 15 — Sentiment vs Hype</span>
+          </div>
+          <div class="card-body">
+            <div class="chart-wrap"><canvas id="sentiment-chart"></canvas></div>
+          </div>
+        </div>
+
+      </div>
+      <div class="col-right">
+
+        <!-- Sub comparison -->
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">Subreddit Overview</span>
+          </div>
+          <div class="card-body" style="padding:12px">
+            <div class="sub-grid" id="sub-overview"></div>
+          </div>
+        </div>
+
+        <!-- Recent posts -->
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">Recent Posts</span>
+          </div>
+          <div class="card-body" id="posts-feed"></div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ── BanBets section ── -->
+    <div id="banbets-section">
+      <div class="banbets-grid">
+
+        <!-- Predictions table -->
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">🎲 BanBet Predictions</span>
+            <div style="display:flex;gap:8px;align-items:center">
+              <select id="bet-filter" onchange="applyBetFilter()"
+                      style="font-family:inherit;font-size:11px;background:var(--surface);
+                             color:var(--muted);border:1px solid var(--border);border-radius:4px;
+                             padding:3px 6px;cursor:pointer">
+                <option value="all">All bets</option>
+                <option value="open">Open</option>
+                <option value="won">Won</option>
+                <option value="lost">Lost</option>
+              </select>
+              <span id="bet-count" style="font-size:11px;color:var(--muted)"></span>
+            </div>
+          </div>
+          <div class="card-body" style="padding:0">
+            <table class="bet-table">
+              <thead>
+                <tr>
+                  <th>Redditor</th>
+                  <th>Ticker</th>
+                  <th class="right">Target $</th>
+                  <th>By</th>
+                  <th>Result</th>
+                  <th style="width:28px">⚙</th>
+                </tr>
+              </thead>
+              <tbody id="bet-table-body"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Leaderboard -->
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">🏆 Redditor Leaderboard</span>
+          </div>
+          <div class="card-body" id="leaderboard-body" style="padding:0 8px"></div>
+        </div>
+
+      </div>
+
+      <!-- Resolve modal -->
+      <div id="resolve-modal" style="display:none;position:fixed;inset:0;
+           background:rgba(0,0,0,0.7);z-index:400;align-items:center;justify-content:center">
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;
+                    padding:24px;max-width:380px;width:90%;box-shadow:0 8px 40px rgba(0,0,0,0.5)">
+          <div style="font-size:14px;font-weight:700;color:var(--text);margin-bottom:16px">
+            Resolve Bet: <span id="resolve-ticker" style="color:var(--accent)"></span>
+          </div>
+          <div style="font-size:12px;color:var(--muted);margin-bottom:16px" id="resolve-detail"></div>
+          <div style="display:flex;gap:8px;margin-bottom:12px">
+            <button class="btn primary" style="flex:1;background:var(--green);border-color:var(--green)"
+                    onclick="submitResolve(true)">✓ Won</button>
+            <button class="btn primary" style="flex:1;background:var(--red);border-color:var(--red)"
+                    onclick="submitResolve(false)">✗ Lost</button>
+          </div>
+          <textarea id="resolve-notes" placeholder="Notes (optional)…"
+                    style="width:100%;font-family:inherit;font-size:12px;background:var(--bg);
+                           color:var(--text);border:1px solid var(--border);border-radius:6px;
+                           padding:8px;resize:vertical;height:60px;margin-bottom:12px"></textarea>
+          <button class="btn" onclick="closeResolve()" style="width:100%">Cancel</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+  // ── State ─────────────────────────────────────────────────────────────────
+  let allData = null;
+  let currentSub = 'all';
+  let sentimentChart = null;
+  let maxHype = 1;
+
+  const CACHE_TTL = {{ cache_ttl }};
+
+  // ── Theme ─────────────────────────────────────────────────────────────────
+  function applyTheme(theme) {
+    document.body.classList.toggle('light', theme === 'light');
+    document.getElementById('theme-toggle').setAttribute(
+      'aria-label', theme === 'light' ? 'Switch to dark mode' : 'Switch to light mode'
+    );
+    try { localStorage.setItem('radar-theme', theme); } catch (_) {}
+    // Re-render chart so Chart.js picks up the updated CSS var colours
+    if (allData) renderChart((allData.trending || []).slice(0, 15));
+  }
+
+  function toggleTheme() {
+    applyTheme(document.body.classList.contains('light') ? 'dark' : 'light');
+  }
+
+  (function initTheme() {
+    let saved = 'dark';
+    try { saved = localStorage.getItem('radar-theme') || 'dark'; } catch (_) {}
+    applyTheme(saved);
+  })();
+
+  // ── Boot ──────────────────────────────────────────────────────────────────
+  async function checkStatus() {
+    const r = await fetch('/api/status');
+    return r.json();
+  }
+
+  async function loadData(force = false) {
+    setLoading(true, force ? 'Force-refreshing Reddit data…' : 'Fetching Reddit data…');
+    document.getElementById('error-area').innerHTML = '';
+
+    try {
+      const status = await checkStatus();
+      if (!status.configured) {
+        setLoading(false);
+        document.getElementById('main-content').style.display = 'block';
+        document.getElementById('setup-screen').style.display = 'block';
+        document.getElementById('dashboard').style.display = 'none';
+        return;
+      }
+
+      const url = force ? '/api/all?force=true' : '/api/all';
+      const r = await fetch(url);
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      allData = await r.json();
+
+      if (allData.error) throw new Error(allData.error);
+
+      setLoading(false);
+      document.getElementById('main-content').style.display = 'block';
+      document.getElementById('setup-screen').style.display = 'none';
+      document.getElementById('dashboard').style.display = 'block';
+
+      render();
+      document.getElementById('status-dot').className = 'status-dot live';
+      document.getElementById('last-update').textContent = `Updated ${allData.fetched_at}`;
+
+    } catch (e) {
+      setLoading(false);
+      document.getElementById('main-content').style.display = 'block';
+      document.getElementById('error-area').innerHTML =
+        `<div class="error-banner">Error: ${e.message}. Check that your .env credentials are correct.</div>`;
+      document.getElementById('dashboard').style.display = allData ? 'block' : 'none';
+    }
+  }
+
+  function setLoading(show, msg = '') {
+    document.getElementById('loading').style.display = show ? 'flex' : 'none';
+    document.getElementById('loading-text').textContent = msg;
+  }
+
+  // ── Email trigger ─────────────────────────────────────────────────────────
+  let emailPollTimer = null;
+
+  async function sendEmail() {
+    const btn = document.getElementById('email-btn');
+    const label = document.getElementById('email-btn-label');
+
+    btn.disabled = true;
+    btn.classList.remove('success', 'error');
+    btn.classList.add('sending');
+    label.textContent = 'Sending…';
+
+    try {
+      const r = await fetch('/api/trigger-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ dry_run: false }),
+      });
+      const data = await r.json();
+
+      if (!data.ok) {
+        const msg = data.reason === 'cooldown'
+          ? `⏳ Cooldown: ${data.remaining_secs}s remaining`
+          : data.reason === 'job_running'
+          ? '⚙ Job already running…'
+          : `✕ ${data.message}`;
+        setEmailState('error', msg, true);
+        return;
+      }
+
+      // Job spawned — poll status
+      pollEmailStatus();
+
+    } catch (e) {
+      setEmailState('error', '✕ Request failed', true);
+    }
+  }
+
+  function pollEmailStatus() {
+    clearInterval(emailPollTimer);
+    emailPollTimer = setInterval(async () => {
+      try {
+        const r = await fetch('/api/email-status');
+        const data = await r.json();
+
+        if (data.state === 'running') {
+          setEmailState('sending', 'Running…', false);
+        } else if (data.state === 'done') {
+          clearInterval(emailPollTimer);
+          if (data.exit_code === 0) {
+            setEmailState('success', '✓ Sent!', true);
+          } else {
+            setEmailState('error', '✕ Failed', true);
+          }
+        }
+      } catch (_) { /* network blip — keep polling */ }
+    }, 2000);
+  }
+
+  function setEmailState(state, text, re_enable_after_delay) {
+    const btn = document.getElementById('email-btn');
+    const label = document.getElementById('email-btn-label');
+    btn.classList.remove('sending', 'success', 'error');
+    btn.classList.add(state);
+    label.textContent = text;
+    if (state !== 'sending') btn.disabled = false;
+    if (re_enable_after_delay && state !== 'sending') {
+      setTimeout(() => {
+        btn.classList.remove('sending', 'success', 'error');
+        label.textContent = '✉ Send Email';
+      }, 4000);
+    }
+  }
+
+  // ── Subreddit selector ────────────────────────────────────────────────────
+  function selectSub(sub, btn) {
+    currentSub = sub;
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    btn.classList.add('active');
+    const isBanbets = sub === '__banbets__';
+    document.getElementById('banbets-section').style.display = isBanbets ? 'block' : 'none';
+    document.querySelector('.grid-main').style.display = isBanbets ? 'none' : 'grid';
+    if (isBanbets) {
+      loadBanBets();
+    } else {
+      render();
+    }
+  }
+
+  // ── Main render ───────────────────────────────────────────────────────────
+  function render() {
+    if (!allData) return;
+
+    let tickers = [];
+    let posts = [];
+    const subData = allData.subreddits;
+
+    if (currentSub === 'all') {
+      tickers = allData.trending;
+      Object.values(subData).forEach(sd => {
+        if (sd.recent_posts) posts = posts.concat(sd.recent_posts);
+      });
+    } else {
+      const sd = subData[currentSub];
+      if (sd && sd.tickers) {
+        tickers = Object.values(sd.tickers).sort((a, b) => b.hype_index - a.hype_index);
+        posts = sd.recent_posts || [];
+      }
+    }
+
+    maxHype = Math.max(...tickers.map(t => t.hype_index), 1);
+
+    renderTickerTable(tickers);
+    renderChart(tickers.slice(0, 15));
+    renderSubOverview(subData);
+    renderPosts(posts.slice(0, 15));
+
+    document.getElementById('ticker-count').textContent = `${tickers.length} tickers`;
+  }
+
+  // ── Ticker table ──────────────────────────────────────────────────────────
+  function renderTickerTable(tickers) {
+    const body = document.getElementById('ticker-table-body');
+    body.innerHTML = '';
+
+    tickers.forEach((t, i) => {
+      const pct = Math.min((t.hype_index / maxHype) * 100, 100);
+      const color = t.sentiment_label === 'bullish' ? 'var(--green)'
+                  : t.sentiment_label === 'bearish' ? 'var(--red)'
+                  : 'var(--yellow)';
+      const subLine = t.subreddit_breakdown
+        ? `<div class="subs-badge">${Object.keys(t.subreddit_breakdown).map(s => `r/${s}`).join(' · ')}</div>`
+        : '';
+
+      const tr = document.createElement('tr');
+      tr.className = 'ticker-row';
+      tr.onclick = () => openDetail(t);
+      tr.innerHTML = `
+        <td class="rank">${i + 1}</td>
+        <td>
+          <div class="ticker-symbol">${t.ticker}</div>
+          ${subLine}
+        </td>
+        <td>
+          <span class="pill ${t.sentiment_label}">${t.sentiment_label}</span>
+          <div style="font-size:10px;color:var(--muted);margin-top:2px">${scoreToEmoji(t.avg_sentiment ?? t.sentiment_score)} ${(t.avg_sentiment ?? t.sentiment_score ?? 0).toFixed(3)}</div>
+        </td>
+        <td class="right">${t.total_mentions ?? t.mentions}</td>
+        <td class="right">${fmtNum(t.total_upvotes ?? t.upvotes)}</td>
+        <td>
+          <div class="hype-bar-wrap">
+            <div class="hype-bar-bg"><div class="hype-bar-fill" style="width:${pct}%;background:${color}"></div></div>
+            <div class="hype-val">${t.hype_index.toFixed(1)}</div>
+          </div>
+        </td>
+      `;
+      body.appendChild(tr);
+    });
+
+    if (!tickers.length) {
+      body.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:24px;color:var(--muted)">No tickers found for this view.</td></tr>';
+    }
+  }
+
+  // ── Chart ─────────────────────────────────────────────────────────────────
+  function renderChart(tickers) {
+    const labels = tickers.map(t => t.ticker);
+    const sentiments = tickers.map(t => t.avg_sentiment ?? t.sentiment_score ?? 0);
+    const hypes = tickers.map(t => t.hype_index);
+
+    const colors = sentiments.map(s =>
+      s >= 0.05 ? 'rgba(34, 197, 94, 0.8)'
+    : s <= -0.05 ? 'rgba(239, 68, 68, 0.8)'
+    : 'rgba(234, 179, 8, 0.8)'
+    );
+
+    if (sentimentChart) sentimentChart.destroy();
+
+    const ctx = document.getElementById('sentiment-chart').getContext('2d');
+    sentimentChart = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels,
+        datasets: [
+          {
+            label: 'Sentiment Score',
+            data: sentiments,
+            backgroundColor: colors,
+            borderColor: colors,
+            borderWidth: 1,
+            yAxisID: 'y',
+          },
+          {
+            label: 'Hype Index',
+            data: hypes,
+            type: 'line',
+            borderColor: 'rgba(99, 102, 241, 0.8)',
+            backgroundColor: 'rgba(99, 102, 241, 0.1)',
+            borderWidth: 2,
+            pointRadius: 4,
+            pointBackgroundColor: 'rgba(99, 102, 241, 1)',
+            fill: false,
+            yAxisID: 'y2',
+            tension: 0.3,
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: { mode: 'index', intersect: false },
+        plugins: {
+          legend: {
+            labels: { color: '#64748b', font: { family: 'monospace', size: 11 } }
+          },
+          tooltip: {
+            backgroundColor: '#151820',
+            borderColor: '#252a35',
+            borderWidth: 1,
+            titleColor: '#e2e8f0',
+            bodyColor: '#94a3b8',
+          }
+        },
+        scales: {
+          x: {
+            ticks: { color: '#64748b', font: { family: 'monospace', size: 11 } },
+            grid: { color: '#252a35' }
+          },
+          y: {
+            position: 'left',
+            ticks: { color: '#64748b', font: { family: 'monospace', size: 10 } },
+            grid: { color: '#252a35' },
+            min: -1, max: 1,
+            title: { display: true, text: 'Sentiment', color: '#64748b', font: { size: 10 } }
+          },
+          y2: {
+            position: 'right',
+            ticks: { color: '#64748b', font: { family: 'monospace', size: 10 } },
+            grid: { display: false },
+            title: { display: true, text: 'Hype', color: '#64748b', font: { size: 10 } }
+          }
+        }
+      }
+    });
+  }
+
+  // ── Sub overview cards ────────────────────────────────────────────────────
+  function renderSubOverview(subData) {
+    const wrap = document.getElementById('sub-overview');
+    wrap.innerHTML = '';
+
+    for (const [name, sd] of Object.entries(subData)) {
+      if (sd.error) continue;
+      const tickerCount = Object.keys(sd.tickers || {}).length;
+      const scores = Object.values(sd.tickers || {}).map(t => t.sentiment_score);
+      const avgSent = scores.length ? (scores.reduce((a, b) => a + b, 0) / scores.length) : 0;
+      const lbl = avgSent >= 0.05 ? 'bullish' : avgSent <= -0.05 ? 'bearish' : 'neutral';
+
+      const div = document.createElement('div');
+      div.className = `sub-card${currentSub === name ? ' selected' : ''}`;
+      div.onclick = () => {
+        const tab = document.querySelector(`.tab[data-sub="${name}"]`);
+        if (tab) selectSub(name, tab);
+      };
+      div.innerHTML = `
+        <div class="sub-name">r/${name}</div>
+        <div class="sub-stat"><span class="label">Posts</span><span class="val">${sd.post_count ?? 0}</span></div>
+        <div class="sub-stat"><span class="label">Tickers</span><span class="val">${tickerCount}</span></div>
+        <div class="sub-stat"><span class="label">Mood</span><span class="pill ${lbl}" style="font-size:9px">${lbl}</span></div>
+      `;
+      wrap.appendChild(div);
+    }
+  }
+
+  // ── Posts feed ────────────────────────────────────────────────────────────
+  function renderPosts(posts) {
+    const feed = document.getElementById('posts-feed');
+    if (!posts.length) {
+      feed.innerHTML = '<div style="color:var(--muted);text-align:center;padding:16px">No posts loaded yet.</div>';
+      return;
+    }
+    feed.innerHTML = posts.map(p => `
+      <div class="post-item">
+        <a class="post-title" href="${p.url}" target="_blank" rel="noopener">${escHtml(p.title)}</a>
+        <div class="post-meta">
+          <span class="pill ${p.sentiment}" style="font-size:9px">${p.sentiment}</span>
+          <span>▲ ${fmtNum(p.upvotes)}</span>
+          <span>${p.created}</span>
+        </div>
+        <div class="post-tickers" style="margin-top:5px">
+          ${(p.tickers || []).slice(0, 6).map(t => `<span class="ticker-tag">$${t}</span>`).join('')}
+        </div>
+      </div>
+    `).join('');
+  }
+
+  // ── BanBets ───────────────────────────────────────────────────────────────
+  let allBets = [];
+  let allRedditors = [];
+  let resolvingBet = null;
+
+  async function loadBanBets() {
+    try {
+      const r = await fetch('/api/banbets');
+      const data = await r.json();
+      allBets = data.bets || [];
+      allRedditors = data.redditors || [];
+      applyBetFilter();
+      renderLeaderboard(allRedditors);
+    } catch (e) {
+      document.getElementById('bet-table-body').innerHTML =
+        `<tr><td colspan="6" style="text-align:center;padding:20px;color:var(--muted)">
+          Failed to load BanBets: ${escHtml(e.message)}</td></tr>`;
+    }
+  }
+
+  function applyBetFilter() {
+    const filter = document.getElementById('bet-filter').value;
+    let bets = allBets;
+    if (filter === 'open')  bets = bets.filter(b => !b.resolved);
+    if (filter === 'won')   bets = bets.filter(b => b.resolved && b.won === true);
+    if (filter === 'lost')  bets = bets.filter(b => b.resolved && b.won === false);
+    renderBets(bets);
+  }
+
+  function renderBets(bets) {
+    const body = document.getElementById('bet-table-body');
+    document.getElementById('bet-count').textContent = `${bets.length} bet(s)`;
+
+    if (!bets.length) {
+      body.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:20px;color:var(--muted)">
+        No BanBets found. They're parsed live from r/wallstreetbets comments.</td></tr>`;
+      return;
+    }
+
+    body.innerHTML = bets.map(b => {
+      const resultClass = !b.resolved ? 'open'
+                        : b.won ? 'won' : 'lost';
+      const resultLabel = !b.resolved ? 'Open'
+                        : b.won ? 'Won ✓' : 'Lost ✗';
+      const resolveBtn = !b.resolved
+        ? `<button class="btn" style="padding:2px 8px;font-size:10px"
+                   onclick="openResolve('${escHtml(b.id)}','${escHtml(b.ticker)}',${b.target},'${escHtml(b.timeline)}')">
+             Resolve
+           </button>`
+        : '<span style="color:var(--muted);font-size:10px">—</span>';
+
+      const postLink = b.post_url
+        ? `<a href="${escHtml(b.post_url)}" target="_blank" rel="noopener"
+              style="color:var(--muted);font-size:10px" title="View post">↗</a>`
+        : '';
+
+      return `<tr>
+        <td>
+          <span style="color:var(--accent);font-weight:600">${escHtml(b.author)}</span>
+          ${postLink}
+        </td>
+        <td><span style="font-weight:700;color:var(--accent)">$${escHtml(b.ticker)}</span></td>
+        <td class="right">$${b.target.toFixed(2)}</td>
+        <td style="color:var(--muted);font-size:11px">${escHtml(b.timeline)}</td>
+        <td><span class="bet-result ${resultClass}">${resultLabel}</span></td>
+        <td>${resolveBtn}</td>
+      </tr>`;
+    }).join('');
+  }
+
+  function renderLeaderboard(redditors) {
+    const body = document.getElementById('leaderboard-body');
+    if (!redditors.length) {
+      body.innerHTML = '<div style="padding:16px;color:var(--muted);text-align:center">No resolved bets yet.</div>';
+      return;
+    }
+    body.innerHTML = redditors.slice(0, 20).map((r, i) => {
+      const wr = r.resolved > 0 ? (r.win_rate * 100).toFixed(0) + '%' : '—';
+      const wrColor = r.win_rate >= 0.6 ? 'var(--green)' : r.win_rate < 0.4 ? 'var(--red)' : 'var(--yellow)';
+      return `<div class="leaderboard-row">
+        <span class="lb-rank">${i + 1}</span>
+        <span class="lb-author">${escHtml(r.author)}</span>
+        <div class="lb-stats">
+          <span title="Win rate" style="color:${wrColor};font-weight:700">${wr}</span>
+          <span title="Wins / Losses">${r.wins}W ${r.losses}L</span>
+          <span title="Open bets" style="color:var(--accent)">${r.pending} open</span>
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+  function openResolve(id, ticker, target, timeline) {
+    resolvingBet = id;
+    document.getElementById('resolve-ticker').textContent = `$${ticker}`;
+    document.getElementById('resolve-detail').textContent =
+      `Target: $${target.toFixed(2)}  ·  By: ${timeline}`;
+    document.getElementById('resolve-notes').value = '';
+    const modal = document.getElementById('resolve-modal');
+    modal.style.display = 'flex';
+  }
+
+  function closeResolve() {
+    document.getElementById('resolve-modal').style.display = 'none';
+    resolvingBet = null;
+  }
+
+  async function submitResolve(won) {
+    if (!resolvingBet) return;
+    const notes = document.getElementById('resolve-notes').value.trim();
+    try {
+      const r = await fetch('/api/banbets/resolve', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: resolvingBet, won, notes }),
+      });
+      if (r.ok) {
+        closeResolve();
+        loadBanBets();
+      } else {
+        const d = await r.json();
+        alert(`Failed: ${d.error || 'unknown error'}`);
+      }
+    } catch (e) {
+      alert(`Network error: ${e.message}`);
+    }
+  }
+
+  // ── Detail panel ──────────────────────────────────────────────────────────
+  function openDetail(t) {
+    const subs = t.subreddit_breakdown || {};
+    const avgSent = t.avg_sentiment ?? t.sentiment_score ?? 0;
+
+    const subRows = Object.entries(subs).map(([name, sd]) => `
+      <div class="sub-row">
+        <span class="sub-row-name">r/${name}</span>
+        <div class="sub-row-right">
+          <span>${sd.mentions} posts</span>
+          <span class="pill ${sd.sentiment_label}" style="font-size:9px">${sd.sentiment_label}</span>
+          <span style="color:var(--muted)">${sd.sentiment_score.toFixed(3)}</span>
+        </div>
+      </div>
+    `).join('');
+
+    const topPosts = (t.top_posts || []).map(p => `
+      <div class="post-item">
+        <a class="post-title" href="${p.url}" target="_blank" rel="noopener">${escHtml(p.title)}</a>
+        <div class="post-meta">
+          <span class="pill ${p.label}" style="font-size:9px">${p.label}</span>
+          <span>▲ ${fmtNum(p.upvotes)}</span>
+          <span>${p.created}</span>
+        </div>
+      </div>
+    `).join('');
+
+    document.getElementById('detail-content').innerHTML = `
+      <div class="detail-ticker">$${t.ticker}</div>
+      <div class="detail-meta">
+        ${t.subreddit_count ?? Object.keys(subs).length} subreddits ·
+        ${t.total_mentions ?? t.mentions} mentions ·
+        ${fmtNum(t.total_upvotes ?? t.upvotes)} upvotes
+      </div>
+
+      <div class="stat-row">
+        <div class="stat-box">
+          <div class="s-label">Sentiment</div>
+          <div class="s-val" style="color:${avgSent >= 0.05 ? 'var(--green)' : avgSent <= -0.05 ? 'var(--red)' : 'var(--yellow)'}">${avgSent.toFixed(3)}</div>
+        </div>
+        <div class="stat-box">
+          <div class="s-label">Hype Index</div>
+          <div class="s-val" style="color:var(--accent)">${t.hype_index.toFixed(1)}</div>
+        </div>
+        <div class="stat-box">
+          <div class="s-label">Mood</div>
+          <div class="s-val" style="font-size:14px;margin-top:8px">
+            <span class="pill ${t.sentiment_label}">${t.sentiment_label}</span>
+          </div>
+        </div>
+      </div>
+
+      ${subRows ? `
+        <div class="card-title" style="margin-bottom:8px">Subreddit Breakdown</div>
+        <div class="sub-breakdown">${subRows}</div>
+      ` : ''}
+
+      ${topPosts ? `
+        <div class="card-title" style="margin-top:20px;margin-bottom:8px">Top Posts</div>
+        <div class="detail-posts">${topPosts}</div>
+      ` : ''}
+    `;
+
+    const panel = document.getElementById('detail-panel');
+    panel.classList.add('open');
+    panel.setAttribute('aria-modal', 'true');
+    panel.querySelector('.detail-close').focus();
+  }
+
+  function closeDetail() {
+    const panel = document.getElementById('detail-panel');
+    panel.classList.remove('open');
+    panel.removeAttribute('aria-modal');
+  }
+
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') closeDetail();
+  });
+
+  // ── Helpers ───────────────────────────────────────────────────────────────
+  function fmtNum(n) {
+    if (!n && n !== 0) return '—';
+    if (n >= 1000) return (n / 1000).toFixed(1) + 'k';
+    return n.toString();
+  }
+
+  function scoreToEmoji(s) {
+    if (s >= 0.3) return '🚀';
+    if (s >= 0.05) return '📈';
+    if (s <= -0.3) return '💀';
+    if (s <= -0.05) return '📉';
+    return '😐';
+  }
+
+  function escHtml(str) {
+    return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
+  // ── Auto-refresh ──────────────────────────────────────────────────────────
+  setInterval(() => {
+    loadData(false);
+  }, CACHE_TTL * 1000);
+
+  // ── Init ──────────────────────────────────────────────────────────────────
+  loadData();
+</script>
+</body>
+</html>
