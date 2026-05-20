@@ -420,37 +420,6 @@
       color: var(--green);
     }
 
-    /* ── Email trigger button ── */
-    #email-btn {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      padding: 6px 14px;
-      border-radius: 6px;
-      border: 1px solid var(--border);
-      background: var(--surface);
-      color: var(--text);
-      cursor: pointer;
-      font-family: inherit;
-      font-size: 12px;
-      transition: all 0.15s;
-    }
-    #email-btn:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
-    #email-btn:disabled { opacity: 0.55; cursor: not-allowed; }
-    #email-btn.sending { border-color: var(--yellow); color: var(--yellow); }
-    #email-btn.success { border-color: var(--green); color: var(--green); }
-    #email-btn.error   { border-color: var(--red);   color: var(--red);   }
-
-    .email-spinner {
-      width: 12px; height: 12px;
-      border: 2px solid currentColor;
-      border-top-color: transparent;
-      border-radius: 50%;
-      animation: spin 0.7s linear infinite;
-      display: none;
-    }
-    #email-btn.sending .email-spinner { display: block; }
-
     /* ── BanBets section ── */
     #banbets-section { display: none; }
 
@@ -557,10 +526,6 @@
     <span class="status-dot" id="status-dot" role="status" aria-label="Connection status"></span>
     <span id="last-update" aria-live="polite">Loading…</span>
     <button id="theme-toggle" onclick="toggleTheme()" aria-label="Toggle light/dark mode" title="Toggle theme"></button>
-    <button id="email-btn" onclick="sendEmail()" aria-label="Send daily email report" title="Trigger the daily radar email">
-      <div class="email-spinner" aria-hidden="true"></div>
-      <span id="email-btn-label">✉ Send Email</span>
-    </button>
     <button class="btn" onclick="loadData(true)" aria-label="Force refresh data">Refresh</button>
   </div>
 </header>
@@ -834,80 +799,6 @@
   function setLoading(show, msg = '') {
     document.getElementById('loading').style.display = show ? 'flex' : 'none';
     document.getElementById('loading-text').textContent = msg;
-  }
-
-  // ── Email trigger ─────────────────────────────────────────────────────────
-  let emailPollTimer = null;
-
-  async function sendEmail() {
-    const btn = document.getElementById('email-btn');
-    const label = document.getElementById('email-btn-label');
-
-    btn.disabled = true;
-    btn.classList.remove('success', 'error');
-    btn.classList.add('sending');
-    label.textContent = 'Sending…';
-
-    try {
-      const r = await fetch('/api/trigger-email', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ dry_run: false }),
-      });
-      const data = await r.json();
-
-      if (!data.ok) {
-        const msg = data.reason === 'cooldown'
-          ? `⏳ Cooldown: ${data.remaining_secs}s remaining`
-          : data.reason === 'job_running'
-          ? '⚙ Job already running…'
-          : `✕ ${data.message}`;
-        setEmailState('error', msg, true);
-        return;
-      }
-
-      // Job spawned — poll status
-      pollEmailStatus();
-
-    } catch (e) {
-      setEmailState('error', '✕ Request failed', true);
-    }
-  }
-
-  function pollEmailStatus() {
-    clearInterval(emailPollTimer);
-    emailPollTimer = setInterval(async () => {
-      try {
-        const r = await fetch('/api/email-status');
-        const data = await r.json();
-
-        if (data.state === 'running') {
-          setEmailState('sending', 'Running…', false);
-        } else if (data.state === 'done') {
-          clearInterval(emailPollTimer);
-          if (data.exit_code === 0) {
-            setEmailState('success', '✓ Sent!', true);
-          } else {
-            setEmailState('error', '✕ Failed', true);
-          }
-        }
-      } catch (_) { /* network blip — keep polling */ }
-    }, 2000);
-  }
-
-  function setEmailState(state, text, re_enable_after_delay) {
-    const btn = document.getElementById('email-btn');
-    const label = document.getElementById('email-btn-label');
-    btn.classList.remove('sending', 'success', 'error');
-    btn.classList.add(state);
-    label.textContent = text;
-    if (state !== 'sending') btn.disabled = false;
-    if (re_enable_after_delay && state !== 'sending') {
-      setTimeout(() => {
-        btn.classList.remove('sending', 'success', 'error');
-        label.textContent = '✉ Send Email';
-      }, 4000);
-    }
   }
 
   // ── Subreddit selector ────────────────────────────────────────────────────
