@@ -41,7 +41,6 @@ CREATE TABLE IF NOT EXISTS bets (
     ticker      TEXT NOT NULL,
     target      REAL NOT NULL,
     timeline    TEXT DEFAULT 'unspecified',
-    raw_line    TEXT DEFAULT '',
     post_url    TEXT DEFAULT '',
     created_at  TEXT NOT NULL,
     resolved    INTEGER NOT NULL DEFAULT 0,   -- 0=open, 1=resolved
@@ -136,11 +135,11 @@ def parse_banbet(text: str, comment_id: str, author: str, post_url: str = "") ->
 
         return {
             "id":         comment_id,
-            "author":     author,
+            "author":     author,         # Reddit username — only stored to power leaderboard
             "ticker":     ticker,
             "target":     price,
             "timeline":   timeline,
-            "raw_line":   stripped[:300],
+            # raw_line intentionally omitted — do not store verbatim Reddit content
             "post_url":   post_url,
             "created_at": datetime.now(timezone.utc).isoformat(),
             "resolved":   False,
@@ -167,14 +166,13 @@ def append_bet(bet: dict) -> bool:
             cur = con.execute(
                 """
                 INSERT OR IGNORE INTO bets
-                    (id, author, ticker, target, timeline, raw_line, post_url,
+                    (id, author, ticker, target, timeline, post_url,
                      created_at, resolved, won, resolved_at, resolved_by, notes)
-                VALUES (?,?,?,?,?,?,?,?,0,NULL,NULL,'','')
+                VALUES (?,?,?,?,?,?,?,0,NULL,NULL,'','')
                 """,
                 (
                     bet["id"], bet["author"], bet["ticker"], bet["target"],
                     bet.get("timeline", "unspecified"),
-                    bet.get("raw_line", "")[:300],
                     bet.get("post_url", ""),
                     bet.get("created_at", datetime.now(timezone.utc).isoformat()),
                 ),

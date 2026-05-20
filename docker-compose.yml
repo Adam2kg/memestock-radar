@@ -2,24 +2,10 @@ services:
 
   dashboard:
     build: .
-    # workers=1 is REQUIRED: the email trigger uses subprocess.Popen + a shared
-    # /tmp status file.  Multiple workers would each have their own _trigger_lock
-    # in-process, allowing concurrent spawns.  One worker + the PID-liveness
-    # check in /api/trigger-email is the safe single-coordinator pattern.
-    command: gunicorn --bind 0.0.0.0:5050 --workers 1 --timeout 120 "app:app"
+    command: gunicorn --bind 0.0.0.0:5050 --workers 4 --timeout 120 "app:app"
     ports:
       - "5050:5050"
     env_file: .env
     volumes:
-      - .:/app           # NAS project dir mounted directly — files stay on your NAS
+      - .:/app           # project dir mounted directly — files stay on your host
     restart: unless-stopped
-
-  agent:
-    build: .
-    command: cron -f
-    env_file: .env
-    volumes:
-      - .:/app
-      - ./docker/crontab:/etc/cron.d/memestock:ro
-    restart: unless-stopped
-    # no port needed — outbound-only (Reddit + Finnhub + Gmail)

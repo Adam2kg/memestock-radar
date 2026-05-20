@@ -99,13 +99,14 @@ def label(score: float) -> str:
 
 # ── BanBet scanning ──────────────────────────────────────────────────────────
 
-def _scan_banbets_in_post(post, post_url: str) -> int:
+def _scan_banbets_in_post(post, post_url: str, prefetched_comments: list | None = None) -> int:
     """
     Scan a PRAW post (body + top comments) for BanBet calls and persist any
     new ones.  Returns the count of new bets appended.
 
-    Only imported when needed so the rest of the module works even if
-    banbet_client is somehow missing.
+    Pass prefetched_comments (already retrieved via replace_more) to avoid
+    a second API round-trip — replace_more is called exactly once per post
+    in the main fetch loop and shared here.
     """
     try:
         from banbet_client import parse_banbet, append_bet
@@ -115,7 +116,7 @@ def _scan_banbets_in_post(post, post_url: str) -> int:
     added = 0
 
     # 1. Scan post body
-    body  = post.selftext or ""
+    body = post.selftext or ""
     if body:
         bet = parse_banbet(body, comment_id=f"post_{post.id}",
                            author=str(getattr(post.author, "name", "unknown")),
@@ -123,21 +124,19 @@ def _scan_banbets_in_post(post, post_url: str) -> int:
         if bet and append_bet(bet):
             added += 1
 
-    # 2. Scan top comments (up to _BANBET_COMMENT_LIMIT)
-    try:
-        post.comments.replace_more(limit=0)
-        for comment in list(post.comments)[:_BANBET_COMMENT_LIMIT]:
-            # Skip deleted/removed comments
-            if not getattr(comment, "body", None):
-                continue
-            # Bail if author is deleted
-            author_name = str(getattr(comment.author, "name", "unknown"))
+    # 2. Scan pre-fetched top comments (no extra API call)
+    comments = prefetched_comments or []
+    for comment in comments[:_BANBET_COMMENT_LIMIT]:
+        if not getattr(comment, "body", None):
+            continue
+        author_name = str(getattr(comment.author, "name", "unknown"))
+        try:
             bet = parse_banbet(comment.body, comment_id=comment.id,
                                author=author_name, post_url=post_url)
             if bet and append_bet(bet):
                 added += 1
-    except Exception as exc:
-        log.debug("BanBet comment scan failed for post %s: %s", post.id, exc)
+        except Exception as exc:
+            log.debug("BanBet comment parse failed for %s: %s", comment.id, exc)
 
     return added
 
@@ -187,22 +186,28 @@ def fetch_subreddit(subreddit_name: str, force: bool = False) -> dict:
             upvotes = post.score or 0
             post_url = f"https://reddit.com{post.permalink}"
 
-            # BanBet scan (WSB only) — must happen before replace_more below
-            # so we don't double-expand the comment tree.
-            if do_banbet:
-                banbet_new += _scan_banbets_in_post(post, post_url)
-
-            if not tickers:
+            if not tickers and not do_banbet:
                 continue
 
-            # Fetch top comments for richer signal (up to 10)
+            # Fetch top comments exactly once per post — shared for both
+            # sentiment scoring and BanBet scanning (avoids double API calls).
             comment_texts = []
+            top_comments: list = []
             try:
                 post.comments.replace_more(limit=0)
-                for c in list(post.comments)[:10]:
+                top_comments = list(post.comments)[:_BANBET_COMMENT_LIMIT]
+                for c in top_comments[:10]:
                     comment_texts.append(c.body or "")
             except Exception:
                 pass
+
+            # BanBet scan (WSB only) — reuses already-fetched comments
+            if do_banbet:
+                banbet_new += _scan_banbets_in_post(post, post_url,
+                                                    prefetched_comments=top_comments)
+
+            if not tickers:
+                continue
 
             comment_score = score_text(" ".join(comment_texts)) if comment_texts else post_score
             combined_score = 0.6 * post_score + 0.4 * comment_score
@@ -280,6 +285,8 @@ def fetch_all(force: bool = False) -> dict:
     results = {}
     for sub in SUBREDDITS:
         results[sub] = fetch_subreddit(sub, force=force)
+        time.sleep(1)  # polite pause between subreddits — PRAW rate-limits per request,
+                       # this adds a subreddit-level delay to stay well within limits
 
     # Cross-subreddit aggregation
     cross: dict[str, dict] = defaultdict(lambda: {
